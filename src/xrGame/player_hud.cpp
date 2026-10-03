@@ -83,6 +83,11 @@ void player_hud_motion_container::load(IKinematicsAnimated* model, const shared_
 					xr_sprintf(buff, "%s%d", pm->m_base_name.c_str(), i);
 
 				motion_ID = model->ID_Cycle_Safe(buff);
+                //code to find hand anim names with speeds of not 1
+                //CMotionDef* def = model->LL_GetMotionDef(motion_ID);
+                //if (def->Speed() != 1) {
+                //    Msg("omf speed is %f, anim_name is %s", def->Speed(), buff);
+                //}
 				if (!motion_ID.valid() && i == 0)
 				{
 					motion_ID = model->ID_Cycle_Safe("hand_idle_doun");
@@ -602,6 +607,11 @@ void attachable_hud_item::load(const shared_str& sect_name)
 	m_attach_place_idx = pSettings->r_u16(sect_name, "attach_place_idx");
 	m_measures.load(sect_name, m_model);
 	m_hand_motions = m_parent->get_hand_motions(*sect_name);
+
+    // demonized: shell particles for hud
+    // An explicitly empty setting disables particles instead of using the weapon default.
+    m_shell_particles_override = pSettings->line_exist(sect_name, "shell_particles");
+    m_shell_particles = m_shell_particles_override ? pSettings->r_string(sect_name, "shell_particles") : nullptr;
 }
 
 player_hud_motion* attachable_hud_item::find_motion(const shared_str& anm_name)
@@ -633,6 +643,8 @@ u32 attachable_hud_item::anim_play(const shared_str& anm_name_b, BOOL bMixIn, co
 	const motion_descr& M = anm->m_animations[rnd_idx];
 	if (speed == 1.f)
 		speed = anm->m_anim_speed != 0 ? anm->m_anim_speed : 1.f;
+        // Verdatim: store the final anim speed for use in motion mark timing scaling
+        final_anim_speed = speed;
 
 	u32 ret = 0;
 	if (m_attach_place_idx != SCOPE_ATTACH_IDX) {
@@ -694,7 +706,7 @@ u32 attachable_hud_item::anim_play(const shared_str& anm_name_b, BOOL bMixIn, co
 			if (FS.exist(ce_path, "$game_anims$", anm_name))
 			{
 				int rand = ::Random.randI(5000, 10000);
-				CAnimatorCamEffector* e = xr_new<CAnimatorCamEffector>();
+				CAnimatorCamEffector* e = xr_new<CHudMotionCamEffector>();
 				e->SetType(ECamEffectorType(rand));
 				e->SetHudAffect(false);
 				e->SetCyclic(false);

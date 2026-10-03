@@ -505,10 +505,10 @@ void CScriptGameObject::MoveItemToRuck(CScriptGameObject* pItem)
 			"CScriptGameObject::MoveItemToRuck non-CInventoryOwner object !!!");
 		return;
 	}
-	
+
 	if (!owner->inventory().CanPutInRuck(item))
 		return;
-	
+
 	NET_Packet P;
 	CGameObject::u_EventGen(P, GEG_PLAYER_ITEM2RUCK, owner->object_id());
 	P.w_u16(item->object().ID());
@@ -525,7 +525,7 @@ void CScriptGameObject::MoveItemToSlot(CScriptGameObject* pItem, u16 slot_id, bo
 			"CScriptGameObject::MoveItemToSlot non-CInventoryOwner object !!!");
 		return;
 	}
-	
+
 	// Have a crash if you want
 	/*
 	if (!owner->inventory().CanPutInSlot(item, slot_id))
@@ -535,7 +535,7 @@ void CScriptGameObject::MoveItemToSlot(CScriptGameObject* pItem, u16 slot_id, bo
 		return;
 	}
 	*/
-	
+
 	CInventoryItem* item_in_slot = owner->inventory().ItemFromSlot(slot_id);
 
 	NET_Packet P;
@@ -545,7 +545,7 @@ void CScriptGameObject::MoveItemToSlot(CScriptGameObject* pItem, u16 slot_id, bo
 		P.w_u16(item_in_slot->object().ID());
 		CGameObject::u_EventSend(P);
 	}
-	
+
 	CGameObject::u_EventGen(P, GEG_PLAYER_ITEM2SLOT, owner->object_id());
 	P.w_u16(item->object().ID());
 	P.w_u16(slot_id);
@@ -563,10 +563,10 @@ void CScriptGameObject::MoveItemToBelt(CScriptGameObject* pItem)
 			"CScriptGameObject::MoveItemToBelt non-CInventoryOwner object !!!");
 		return;
 	}
-	
+
 	if (!owner->inventory().CanPutInBelt(item))
 		return;
-	
+
 	NET_Packet P;
 	CGameObject::u_EventGen(P, GEG_PLAYER_ITEM2BELT, owner->object_id());
 	P.w_u16(item->object().ID());
@@ -1918,6 +1918,105 @@ bool CScriptGameObject::sniper_fire_mode() const
 	return (stalker->sniper_fire_mode());
 }
 
+void CScriptGameObject::set_aim_params(float max_angle, float min_angle, float min_speed, float predict_time)
+{
+	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());
+	if (!stalker)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : cannot access class member set_aim_params!");
+		return;
+	}
+
+	stalker->set_aim_params(max_angle, min_angle, min_speed, predict_time);
+}
+
+void CScriptGameObject::set_fire_queue_scale(float size_k, float interval_k)
+{
+	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());
+	if (!stalker)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : cannot access class member set_fire_queue_scale!");
+		return;
+	}
+
+	stalker->set_fire_queue_scale(size_k, interval_k);
+}
+
+bool CScriptGameObject::is_hit_anim_playing()
+{
+	CEntityAlive* entity_alive = smart_cast<CEntityAlive*>(&object());
+	if (!entity_alive || !entity_alive->character_physics_support())
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CEntityAlive : cannot access class member is_hit_anim_playing!");
+		return (false);
+	}
+
+	return (entity_alive->character_physics_support()->is_hit_anim_playing());
+}
+
+void CScriptGameObject::set_movement_hold(bool value)
+{
+	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());
+	if (!stalker)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : cannot access class member set_movement_hold!");
+		return;
+	}
+
+	stalker->movement_hold(value);
+}
+
+bool CScriptGameObject::can_kill_enemy()
+{
+	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());
+	if (!stalker)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : cannot access class member can_kill_enemy!");
+		return (false);
+	}
+
+	// Callable from script at any time; the engine's own readers (CObjectActionFire) only run
+	// with a weapon out. No active item = no fire point, so no shot clearance to compute.
+	if (!stalker->inventory().ActiveItem())
+		return (false);
+
+	return (stalker->can_kill_enemy());
+}
+
+bool CScriptGameObject::can_kill_member()
+{
+	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());
+	if (!stalker)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : cannot access class member can_kill_member!");
+		return (false);
+	}
+
+	if (!stalker->inventory().ActiveItem())
+		return (false);
+
+	return (stalker->can_kill_member());
+}
+
+bool CScriptGameObject::fire_make_sense()
+{
+	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());
+	if (!stalker)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : cannot access class member fire_make_sense!");
+		return (false);
+	}
+
+	return (stalker->fire_make_sense());
+}
+
 void CScriptGameObject::aim_bone_id(LPCSTR bone_id)
 {
 	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());
@@ -1968,6 +2067,39 @@ void CScriptGameObject::unregister_in_combat()
 	}
 
 	stalker->agent_manager().member().unregister_in_combat(stalker);
+}
+
+// Force-plant enemy as a visible-memory object on this stalker (CMemoryManager::
+// make_object_visible_somewhen - the same call the engine uses when distributing wounded
+// targets across a squad, agent_enemy_manager.cpp). Enemy selection scores a currently seen
+// enemy far above hit/sound memory, so an enemy injected only via hit memory never wins
+// selection; this puts him in the seen class, where the engine's nearest-seen logic takes over.
+void CScriptGameObject::make_enemy_visible(CScriptGameObject* enemy)
+{
+	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());
+	if (!stalker)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : cannot access class member make_enemy_visible!");
+		return;
+	}
+
+	if (!enemy)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : make_enemy_visible : enemy is nil!");
+		return;
+	}
+
+	const CEntityAlive* entity = smart_cast<const CEntityAlive*>(&enemy->object());
+	if (!entity)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : make_enemy_visible : enemy is not an alive entity!");
+		return;
+	}
+
+	stalker->memory().make_object_visible_somewhen(entity);
 }
 
 CCoverPoint const* CScriptGameObject::find_best_cover(Fvector position_to_cover_from)
@@ -2504,17 +2636,16 @@ void CScriptGameObject::SetWeight(float w)
 	inventory_item->SetWeight(w);
 }
 
-// demonized: get luminosity as displayed in ui
-float CScriptGameObject::GetActorUILuminosity()
+float CScriptGameObject::GetActorVisibility()
 {
 	CActor* pActor = smart_cast<CActor*>(&object());
 	if (!pActor)
 	{
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
-			"CScriptGameObject::GetActorLuminosity, object is not actor");
+			"CScriptGameObject::GetActorVisibility, object is not actor");
 		return 0.f;
 	}
-	return pActor->GetUILuminosity();
+	return pActor->GetVisibility();
 }
 
 float CScriptGameObject::GetActorJumpSpeed() const
@@ -2710,6 +2841,30 @@ void CScriptGameObject::SetActorLookoutCoef(float val)
 		return;
 	}
 	pActor->m_fLookoutFactor = val;
+}
+
+// verdatim: set damage stagger time factor
+float CScriptGameObject::GetActorDamageStaggerTimeFactor() const
+{
+    CActor* pActor = smart_cast<CActor*>(&object());
+    if (!pActor)
+    {
+        ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+            "CActor : cannot access class member GetActorDamageStaggerTimeFactor!");
+        return (false);
+    }
+    return (pActor->DamageStaggerTimeFactor);
+}
+void CScriptGameObject::SetActorDamageStaggerTimeFactor(float val)
+{
+    CActor* pActor = smart_cast<CActor*>(&object());
+    if (!pActor)
+    {
+        ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+            "CActor : cannot access class member SetActorDamageStaggerTimeFactor!");
+        return;
+    }
+    pActor->DamageStaggerTimeFactor = val;
 }
 
 // demonized: Additional exports

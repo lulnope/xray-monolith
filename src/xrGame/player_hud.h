@@ -305,9 +305,15 @@ struct attachable_hud_item
 	u16 m_attach_place_idx;
 	hud_item_measures m_measures;
 
+    shared_str m_shell_particles;
+    bool m_shell_particles_override = false;
+
 	//runtime positioning
 	Fmatrix m_attach_offset;
 	Fmatrix m_item_transform;
+
+    // ver; final anim speed holder for use in motion mark timing scaling
+    float final_anim_speed;
 
 	player_hud_motion_container* m_hand_motions;
 
