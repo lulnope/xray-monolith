@@ -1583,7 +1583,7 @@ void CPHMovementControl::SetPLastMaterialIDX(u16* p)
 	m_character->SetPLastMaterialIDX(p);
 }
 
-#ifdef DEBUG
+#if defined(DEBUG) || defined(DEBUG_DRAW)
 	void CPHMovementControl::dbg_Draw()
 	{
 #if 0
