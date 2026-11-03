@@ -46,6 +46,9 @@
 ENGINE_API CRenderDevice Device;
 ENGINE_API CLoadScreenRenderer load_screen_renderer;
 ENGINE_API CRenderDevice* DevicePtr = nullptr;
+ENGINE_API xr_atomic_bool g_bRendering = false;
+extern ENGINE_API float psHUD_FOV;
+extern ENGINE_API float psCamAttachedFOV;
 
 ENGINE_API xr_atomic_bool g_bRendering = false;
 extern ENGINE_API float psHUD_FOV;
@@ -108,8 +111,6 @@ void CRenderDevice::Clear()
 	m_pRender->Clear();
 }
 
-extern void CheckPrivilegySlowdown();
-
 
 void CRenderDevice::End(void)
 {
@@ -151,16 +152,6 @@ void CRenderDevice::End(void)
 #ifdef FIND_CHUNK_BENCHMARK_ENABLE
             g_find_chunk_counter.flush();
 #endif // FIND_CHUNK_BENCHMARK_ENABLE
-
-			CheckPrivilegySlowdown();
-
-			if (g_pGamePersistent->GameType() == 1) //haCk
-			{
-				WINDOWINFO wi;
-				GetWindowInfo(m_hWnd, &wi);
-				if (wi.dwWindowStatus != WS_ACTIVECAPTION)
-					Pause(TRUE, TRUE, TRUE, "application start");
-			}
 		}
 	}
 
@@ -450,7 +441,7 @@ void CRenderDevice::on_idle()
 	m_pRender->SetCacheXform_prev(mView_prev, mProject_prev);
 
 	mProjectHud.build_projection(deg2rad(psHUD_FOV * 83.f), fASPECT, R_VIEWPORT_NEAR, g_pGamePersistent->Environment().CurrentEnv->far_plane);
-	mProjectCam.build_projection(deg2rad(83.f), fASPECT, R_VIEWPORT_NEAR, g_pGamePersistent->Environment().CurrentEnv->far_plane);
+	mProjectCam.build_projection(deg2rad(psCamAttachedFOV), fASPECT, R_VIEWPORT_NEAR, g_pGamePersistent->Environment().CurrentEnv->far_plane);
 	
 	mViewHud.set(mView);
 	mViewCam.set(mView);

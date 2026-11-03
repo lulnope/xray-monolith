@@ -16,6 +16,8 @@
 #include "../xrEngine/CameraBase.h"
 #include "Actor.h"
 #include "ai_debug_draw.h"
+#include "../xrEngine/CameraBase.h"
+#include "Actor.h"
 
 //#define SIGHT_TEST
 

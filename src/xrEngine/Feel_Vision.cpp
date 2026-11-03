@@ -221,11 +221,11 @@ void Vision::feel_vision_update(Fvector& P, float dt, float vis_threshold)
 			{
 				I->fuzzy = -1;
 #if defined(DEBUG) || defined(DEBUG_DRAW)
-				I->dbg_result = dbg_trace_no_cform;
-				I->dbg_time = Device.dwTimeGlobal;
+			I->dbg_result = dbg_trace_no_cform;
+			I->dbg_time = Device.dwTimeGlobal;
 #endif
-				continue;
-			}
+			continue;
+		}
 
 		// verify relation
 		// if (positive(I->fuzzy) && I->O->Position().similar(I->cp_LR_dst,lr_granularity) && P.similar(I->cp_LR_src,lr_granularity))
@@ -420,4 +420,4 @@ void Vision::feel_vision_update(Fvector& P, float dt, float vis_threshold)
 			}
 		}
 	}
-
+};

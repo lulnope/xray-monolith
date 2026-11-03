@@ -13,7 +13,7 @@ using namespace collide;
 //----------------------------------------------------------------------
 CObjectSpace::CObjectSpace()
 #if defined(DEBUG) || defined(DEBUG_DRAW)
-	,m_pRender(0)
+	m_pRender(0)
 #endif
 {
 #if defined(DEBUG) || defined(DEBUG_DRAW)
