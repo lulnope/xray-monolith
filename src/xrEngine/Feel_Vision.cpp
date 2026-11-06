@@ -8,7 +8,7 @@
 using Feel::Vision;
 
 #if defined(DEBUG) || defined(DEBUG_DRAW)
-ENGINE_API string64 g_dbg_visibility_ray_bone = "off";
+ENGINE_API string64 Feel::g_dbg_visibility_ray_bone = "off";
 
 // first hit of RD on O's own collision form, any bone
 static void dbg_first_hit(CObject* O, collide::ray_defs const& RD, float& t, int& elem)

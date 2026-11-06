@@ -51,6 +51,7 @@
 #define EXPLOSIVE_CHANGE								// Upgrade CExplosive and its relatives.
 #define CBULLETMANAGER_EX                               // Upgrade CBulletManager.
 
+#define DEBUG_DRAW
 /*LAYERED_SND_SHOOT by Alundaio
 When defined, it will allow you to play a group of sounds from a specified section for snd_shoot.
 You can have as many layers as you want, but you must follow naming convention,
