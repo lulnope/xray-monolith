@@ -24,16 +24,18 @@ private:
 	{
 		u32 crc, length;
 		const u8* bytes;
+		size_t digest; // see make_digest
 		bool operator==(const key& other) const noexcept
 		{
-			return crc == other.crc && length == other.length &&
+			return digest == other.digest && crc == other.crc && length == other.length &&
 				memcmp(bytes, other.bytes, length) == 0;
 		}
 	};
 	struct hash
 	{
-		size_t operator()(const key& value) const noexcept { return value.crc; }
+		size_t operator()(const key& value) const noexcept { return value.digest; }
 	};
+	static size_t make_digest(u32 crc, u32 length, const u8* bytes) noexcept;
 	typedef xr_unordered_flat_map<key, smem_value*, hash> cdb;
 	xrCriticalSection cs;
 	cdb container;
