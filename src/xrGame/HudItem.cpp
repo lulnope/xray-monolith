@@ -41,6 +41,9 @@ CHudItem::CHudItem()
 	m_fCurrentMotionTime = 0.f;
 	m_fCurrentMotionLength = 0.f;
 	m_fCurrentMotionSpeed = 0.f;
+	m_fCurrentMotionEnd = 0.f;
+	m_dwMotionLastUpdateTm = 0;
+	m_motion_serial = 0;
 
 	m_fLR_CameraFactor = 0.f;
 	m_fLR_MovingFactor = 0.f;
@@ -555,49 +558,97 @@ void CHudItem::UpdateNearWall()
 	}
 }
 
+// Same as END_EPS in CBlend::update_time: a stop-at-end blend freezes this long before the end of the motion,
+// and a looping blend restarts there.
+static const float HUD_MOTION_END_EPS = SAMPLE_SPF + EPS;
+
 void CHudItem::UpdateCL()
 {
-	if (m_current_motion_def)
-	{
-		const xr_vector<motion_marks>& marks = m_current_motion_def->marks;
-		if (!marks.empty())
-		{
-			xr_vector<motion_marks>::const_iterator it = marks.begin();
-			xr_vector<motion_marks>::const_iterator it_e = marks.end();
-			for (; it != it_e; ++it)
-			{
-				const motion_marks& M = (*it);
-				if (M.is_empty())
-					continue;
-
-				const auto intervals = M.get_intervals();
-
-				for (const motion_marks::interval& interval : intervals)
-				{
-					if (interval.first >= m_fPreviousMotionTime && interval.first < m_fCurrentMotionTime)
-						OnMotionMark(m_startedMotionState, M, interval.first, interval.second);
-				}
-			}
-		}
-
-		m_fPreviousMotionTime = m_fCurrentMotionTime;
-		m_fCurrentMotionTime += Device.fTimeDelta * m_fCurrentMotionSpeed;
-
-		if (m_fCurrentMotionTime > (m_fCurrentMotionLength - .033343f))
-		{
-			if (m_bStopAtEndAnimIsRunning)
-			{
-				StopCurrentAnimWithoutCallback();
-				OnAnimationEnd(m_startedMotionState);
-				return;
-			}
-			else
-				m_fCurrentMotionTime -= m_fCurrentMotionLength;
-		}
-	}
+	if (m_current_motion_def && !UpdateMotionClock())
+		return; // the animation finished and OnAnimationEnd ran this frame
 
 	if (script_ui)
 		script_ui->Update();
+}
+
+// Advances the motion clock, fires motion marks and reports the end of stop-at-end animations.
+// Returns false if OnAnimationEnd was called.
+bool CHudItem::UpdateMotionClock()
+{
+	// Same time source as the skeleton (CKinematicsAnimated::UpdateTracks), so the clock follows what is on screen
+	// and does not fall behind when this object is updated less often than every frame (NPC weapons).
+	u32 elapsed_ms = Device.dwTimeGlobal - m_dwMotionLastUpdateTm;
+	m_dwMotionLastUpdateTm = Device.dwTimeGlobal;
+	if (IsAttachedToHUD() && elapsed_ms > 66)
+		elapsed_ms = 66; // UpdateTracks limits its step the same way
+
+	m_fPreviousMotionTime = m_fCurrentMotionTime;
+	m_fCurrentMotionTime += float(elapsed_ms) / 1000.f * m_fCurrentMotionSpeed;
+
+	const u32 motion_serial = m_motion_serial;
+
+	if (!m_bStopAtEndAnimIsRunning)
+	{
+		// Looping blends restart at (length - END_EPS), see CBlend::update_time
+		const float loop_length = m_fCurrentMotionLength - HUD_MOTION_END_EPS;
+		if (loop_length > EPS_L && m_fCurrentMotionTime > loop_length)
+		{
+			// Rest of this cycle, including marks placed in the last frame
+			if (!FireMotionMarks(m_fPreviousMotionTime, m_fCurrentMotionLength, motion_serial))
+				return true;
+
+			m_fPreviousMotionTime = 0.f;
+			m_fCurrentMotionTime -= loop_length;
+			if (m_fCurrentMotionTime > loop_length) // whole cycles were skipped, don't replay their marks
+				m_fCurrentMotionTime = fmodf(m_fCurrentMotionTime, loop_length);
+		}
+	}
+
+	if (!FireMotionMarks(m_fPreviousMotionTime, m_fCurrentMotionTime, motion_serial))
+		return true;
+
+	if (m_bStopAtEndAnimIsRunning && m_fCurrentMotionTime > m_fCurrentMotionEnd)
+	{
+		StopCurrentAnimWithoutCallback();
+		OnAnimationEnd(m_startedMotionState);
+		return false;
+	}
+
+	return true;
+}
+
+// Fires the marks of the current animation that start in [from, to).
+// Returns false if a mark handler started or stopped an animation.
+bool CHudItem::FireMotionMarks(float from, float to, u32 motion_serial)
+{
+	if (to <= from)
+		return true;
+
+	// Engine gameplay handlers (reload, throw, knife hit, shotgun unjam, flashlight switch) have only ever reacted
+	// to marks of stop-at-end animations. Marks of looping animations are reported to scripts only.
+	const bool engine_handlers = m_bStopAtEndAnimIsRunning;
+
+	// Indexed access: a handler may rewrite the marks (set_hand_motion_marks) while we iterate
+	const xr_vector<motion_marks>& marks = m_current_motion_def->marks;
+	for (size_t i = 0; i < marks.size(); ++i)
+	{
+		for (size_t j = 0; i < marks.size() && j < marks[i].get_intervals().size(); ++j)
+		{
+			const motion_marks::interval interval = marks[i].get_intervals()[j];
+			if (interval.first < from || interval.first >= to)
+				continue;
+
+			if (engine_handlers)
+				OnMotionMark(m_startedMotionState, marks[i], interval.first, interval.second);
+			else
+				CHudItem::OnMotionMark(m_startedMotionState, marks[i], interval.first, interval.second);
+
+			if (motion_serial != m_motion_serial || !m_current_motion_def)
+				return false;
+		}
+	}
+
+	return true;
 }
 
 void CHudItem::OnMotionMark(u32 state, const motion_marks& M, float mark_start, float mark_end)
@@ -748,21 +799,78 @@ u32 CHudItem::PlayHUDMotion(shared_str M, BOOL bMixIn, CHudItem* W, u32 state, f
 		}
 	}
 
-	m_bStopAtEndAnimIsRunning = PlayHUDMotion_noCB(M, bMixIn, speed, bMixIn2);
+	float final_speed = speed;
+	PlayHUDMotion_noCB(M, bMixIn, speed, bMixIn2, &final_speed);
 
-	u32 anim_time = g_player_hud->motion_length(M, HudSection(), m_current_motion_def, m_started_rnd_anim_idx, true);
+	float motion_length, def_speed, anim_end;
+	bool stop_at_end;
+	if (!GetStartedMotionInfo(M, motion_length, def_speed, stop_at_end, anim_end))
+	{
+		// Unknown motion: keep the old fallback of a 100 ms one-shot animation
+		motion_length = .1f;
+		def_speed = 1.f;
+		stop_at_end = true;
+		anim_end = 0.f;
+	}
+
+	++m_motion_serial;
+	m_startedMotionState = state;
+	m_bStopAtEndAnimIsRunning = stop_at_end;
+	m_dwMotionLastUpdateTm = Device.dwTimeGlobal;
 	m_fPreviousMotionTime = 0.f;
 	m_fCurrentMotionTime = 0.f;
-	m_fCurrentMotionLength = anim_time / 1000.f;
-	m_startedMotionState = state;
+	m_fCurrentMotionLength = motion_length;
+	m_fCurrentMotionSpeed = def_speed * final_speed; // the rate the skeleton actually plays it at
 
-	return anim_time;
+	// A stop-at-end animation is finished where the skeleton freezes it, unless an end trim is given.
+	// End trims are real seconds cut from the end: 4th value of the anm_ line, the "end" argument of
+	// play_hud_motion (anm_end in actor_on_hud_animation_play), or the g_end_modif console variable.
+	float end_modifier = anim_end;
+	if (end_modifier == 0.f)
+		end_modifier = end;
+	if (g_end_modif != 0.f)
+		end_modifier = g_end_modif;
+
+	m_fCurrentMotionEnd = motion_length - HUD_MOTION_END_EPS;
+	if (stop_at_end && end_modifier != 0.f)
+		m_fCurrentMotionEnd = motion_length - end_modifier * m_fCurrentMotionSpeed;
+
+	// Return value as scripts know it: real duration in ms of a stop-at-end animation, 0 for a looping one
+	if (!stop_at_end || m_fCurrentMotionSpeed <= 0.f)
+		return 0;
+
+	return iFloor(0.5f + 1000.f * motion_length / m_fCurrentMotionSpeed);
 }
 
-bool CHudItem::PlayHUDMotion_noCB(const shared_str& motion_name, BOOL bMixIn, float speed, bool bMixIn2)
+// Looks up the hand motion PlayHUDMotion_noCB just started (same random variant and 16:9 alias as on screen).
+bool CHudItem::GetStartedMotionInfo(const shared_str& M, float& length, float& def_speed, bool& stop_at_end, float& anim_end)
+{
+	anim_end = 0.f;
+
+	const player_hud_motion* anm = nullptr;
+	if (IsAttachedToHUD())
+	{
+		anm = HudItemData()->find_motion(M);
+		if (anm)
+			anim_end = anm->m_anim_end; // the hud section end trim only ever applied on the player's HUD
+	}
+	else
+	{
+		player_hud_motion_container* pc = g_player_hud->get_hand_motions(*HudSection());
+		if (pc)
+			anm = pc->find_motion(M);
+	}
+
+	if (!anm || anm->m_animations.empty())
+		return false;
+
+	const u8 idx = m_started_rnd_anim_idx < anm->m_animations.size() ? m_started_rnd_anim_idx : 0;
+	return g_player_hud->motion_info(anm->m_animations[idx].mid, m_current_motion_def, length, def_speed, stop_at_end);
+}
+
+bool CHudItem::PlayHUDMotion_noCB(const shared_str& motion_name, BOOL bMixIn, float speed, bool bMixIn2, float* final_speed)
 {
 	m_current_motion = motion_name;
-    m_fCurrentMotionSpeed = speed;
 
 	if (bDebug && item().m_pInventory)
 	{
@@ -775,12 +883,16 @@ bool CHudItem::PlayHUDMotion_noCB(const shared_str& motion_name, BOOL bMixIn, fl
 	}
 	if (IsAttachedToHUD())
 	{
+		// Applies the hud section speed if the caller used the default one and writes the final speed back
 		HudItemData()->anim_play(motion_name, bMixIn, m_current_motion_def, m_started_rnd_anim_idx, speed, bMixIn2);
 	}
 	else
 	{
 		m_started_rnd_anim_idx = 0;
 	}
+
+	if (final_speed)
+		*final_speed = speed;
 
 	return g_player_hud->motion_is_stop_at_end(motion_name, HudSection());
 }
@@ -791,8 +903,10 @@ void CHudItem::StopCurrentAnimWithoutCallback()
 	m_fCurrentMotionTime = 0.f;
 	m_fCurrentMotionLength = 0.f;
 	m_fCurrentMotionSpeed = 0.f;
+	m_fCurrentMotionEnd = 0.f;
 	m_bStopAtEndAnimIsRunning = false;
 	m_current_motion_def = nullptr;
+	++m_motion_serial;
 }
 
 BOOL CHudItem::GetHUDmode()

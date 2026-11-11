@@ -960,7 +960,7 @@
     }
 
     class game_object {
-        table get_current_motion()
+        table get_current_motion() // {name, index, stop_at_end, state, speed, length, current_time}; length and current_time are animation time in seconds, speed is the real playback rate, so (length - current_time) / speed is the real time left
         bool is_pending()
         void set_pending(bool pending)
 

@@ -24,6 +24,7 @@ struct player_hud_motion
 	shared_str m_base_name;
 	shared_str m_additional_name;
 	float m_anim_speed = 1.f;
+	float m_anim_end = 0.f; // optional 4th value of an anm_ line: seconds to cut from the end of the animation
 	xr_vector<motion_descr> m_animations;
 };
 
@@ -445,6 +446,7 @@ public:
 	u32 motion_length_script(LPCSTR section, LPCSTR anm_name, float speed);
 	u32 motion_length(const shared_str& anim_name, const shared_str& hud_name, const CMotionDef*& md, u8 anim_idx = 0, bool ignore_stop_at_end = false);
 	bool motion_is_stop_at_end(const shared_str& anim_name, const shared_str& hud_name);
+	bool motion_info(const MotionID& M, const CMotionDef*& md, float& length, float& def_speed, bool& stop_at_end);
 	void OnMovementChanged(ACTOR_DEFS::EMoveCommand cmd);
 	bool inertion_allowed();
 

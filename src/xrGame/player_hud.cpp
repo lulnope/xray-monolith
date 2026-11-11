@@ -83,6 +83,12 @@ void player_hud_motion_container::load(IKinematicsAnimated* model, const shared_
 
 				_GetItem(anm.c_str(), 2, str_item);
 				pm->m_anim_speed = atof(str_item);
+
+				if (item_count >= 4)
+				{
+					_GetItem(anm.c_str(), 3, str_item);
+					pm->m_anim_end = atof(str_item);
+				}
 				break;
 			}
 
@@ -666,7 +672,11 @@ u32 attachable_hud_item::anim_play(const shared_str& anm_name_b, BOOL bMixIn, co
 	player_hud_motion* anm = find_motion(anm_name_b);
 	rnd_idx = (u8)Random.randI(anm->m_animations.size());
 	const motion_descr& M = anm->m_animations[rnd_idx];
-	speed *= anm->m_anim_speed;
+	// The hud section speed (3rd value of the anm_ line) is used when the caller plays the animation at the
+	// default speed. A speed requested by engine code or a script replaces it, as mods expect.
+	// The final speed is written back to the caller.
+	if (speed == 1.f && anm->m_anim_speed != 0.f)
+		speed = anm->m_anim_speed;
 
 	u32 ret = 0;
 	if (m_attach_place_idx != SCOPE_ATTACH_IDX) {
@@ -1404,6 +1414,20 @@ u32 player_hud::motion_length(const shared_str& anim_name, const shared_str& hud
 		return 100; // ms UNTEMPORARY
 
 	return motion_length(pm->m_animations[anim_idx].mid, md, 1.f, ignore_stop_at_end);
+}
+
+// Length in animation time (seconds), the speed stored in the motion definition and the stop-at-end flag of a hand motion.
+bool player_hud::motion_info(const MotionID& M, const CMotionDef*& md, float& length, float& def_speed, bool& stop_at_end)
+{
+	CMotionDef* def = m_model->LL_GetMotionDef(M);
+	if (!def)
+		return false;
+
+	md = def;
+	length = m_model->LL_GetRootMotion(M)->GetLength();
+	def_speed = def->Speed();
+	stop_at_end = !!(def->flags & esmStopAtEnd);
+	return true;
 }
 
 u32 player_hud::motion_length(const MotionID& M, const CMotionDef*& md, float speed, bool ignore_stop_at_end)

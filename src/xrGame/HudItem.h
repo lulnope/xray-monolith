@@ -131,10 +131,15 @@ public:
 		u32 m_startedMotionState;
 		u8 m_started_rnd_anim_idx;
 		bool m_bStopAtEndAnimIsRunning;
+		// Motion clock. Times are animation time in seconds, the same units as motion marks and the skeleton blend.
+		// Speed is the real playback rate: motion definition speed * requested (or hud section) speed.
 		float m_fPreviousMotionTime;
 		float m_fCurrentMotionTime;
 		float m_fCurrentMotionLength;
 		float m_fCurrentMotionSpeed;
+		float m_fCurrentMotionEnd; // time at which a stop-at-end animation is reported as finished
+		u32 m_dwMotionLastUpdateTm; // Device.dwTimeGlobal of the last clock step
+		u32 m_motion_serial; // changes whenever a motion is started or stopped
 	};
 
 	virtual void Load(LPCSTR section);
@@ -163,7 +168,8 @@ public:
 	IC bool IsPending() const { return !!m_huditem_flags.test(fl_pending); }
 	IC void SetPending(bool H) { m_huditem_flags.set(fl_pending, H); }
 
-    IC float MotionTimeLeft() const { return m_fCurrentMotionSpeed > 0.f ? _max(m_fCurrentMotionLength - m_fCurrentMotionTime, 0.f) / m_fCurrentMotionSpeed : 0.f; }
+	// Real seconds until the current stop-at-end animation is reported as finished
+	IC float MotionTimeLeft() const { return m_fCurrentMotionSpeed > 0.f ? _max(m_fCurrentMotionEnd - m_fCurrentMotionTime, 0.f) / m_fCurrentMotionSpeed : 0.f; }
 
 	virtual void DeleteHudItemData();
 
@@ -212,7 +218,7 @@ public:
 	virtual void UpdateXForm() = 0;
 
 	u32 PlayHUDMotion(shared_str M, BOOL bMixIn, CHudItem* W, u32 state, float speed = 1.f, float end = 0.f, bool bMixIn2 = true);
-	bool PlayHUDMotion_noCB(const shared_str& M, BOOL bMixIn, float speed = 1.f, bool bMixIn2 = true);
+	bool PlayHUDMotion_noCB(const shared_str& M, BOOL bMixIn, float speed = 1.f, bool bMixIn2 = true, float* final_speed = nullptr);
 	void StopCurrentAnimWithoutCallback();
 
 	IC void RenderHud(BOOL B) { m_huditem_flags.set(fl_renderhud, B); }
@@ -245,6 +251,10 @@ public:
 
 	virtual bool CheckCompatibility(CHudItem*) { return true; }
 protected:
+
+	bool UpdateMotionClock();
+	bool FireMotionMarks(float from, float to, u32 motion_serial);
+	bool GetStartedMotionInfo(const shared_str& M, float& length, float& def_speed, bool& stop_at_end, float& anim_end);
 
 	shared_str hud_sect;
 
