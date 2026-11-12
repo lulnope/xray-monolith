@@ -28,6 +28,10 @@ ENGINE_API extern float psHUD_FOV_def;
 int g_nearwall = NW_FOV;
 int g_nearwall_trace = NT_CAM;
 
+// verdatim: 0 (default) = motion marks fire on real time since the animation started, which is what existing mods
+// are tuned for; 1 = marks follow the animation, so they move with its playback speed.
+BOOL scale_hud_motion_marks_by_speed = FALSE;
+
 CHudItem::CHudItem()
 {
 	RenderHud(TRUE);
@@ -624,6 +628,14 @@ bool CHudItem::FireMotionMarks(float from, float to, u32 motion_serial)
 	if (to <= from)
 		return true;
 
+	// from/to are animation time. Unless marks follow the playback speed, compare them on real time since the
+	// animation (or loop cycle) started instead.
+	if (!scale_hud_motion_marks_by_speed && m_fCurrentMotionSpeed > 0.f)
+	{
+		from /= m_fCurrentMotionSpeed;
+		to /= m_fCurrentMotionSpeed;
+	}
+
 	// Engine gameplay handlers (reload, throw, knife hit, shotgun unjam, flashlight switch) have only ever reacted
 	// to marks of stop-at-end animations. Marks of looping animations are reported to scripts only.
 	const bool engine_handlers = m_bStopAtEndAnimIsRunning;
@@ -895,6 +907,18 @@ bool CHudItem::PlayHUDMotion_noCB(const shared_str& motion_name, BOOL bMixIn, fl
 		*final_speed = speed;
 
 	return g_player_hud->motion_is_stop_at_end(motion_name, HudSection());
+}
+
+bool CHudItem::CurrentMotionHasMark(LPCSTR name) const
+{
+	if (!m_current_motion_def)
+		return false;
+
+	for (const motion_marks& M : m_current_motion_def->marks)
+		if (!M.is_empty() && xr_strcmp(M.name.c_str(), name) == 0)
+			return true;
+
+	return false;
 }
 
 void CHudItem::StopCurrentAnimWithoutCallback()

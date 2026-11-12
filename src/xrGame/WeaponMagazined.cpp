@@ -1763,7 +1763,15 @@ void CWeaponMagazined::OnMotionMark(u32 state, const motion_marks& M, float mark
     shared_str reloadMarkName = READ_IF_EXISTS(pSettings, r_string, cNameSect(), "motion_mark_reload", "");
 	if (state == eReload && (reloadMarkName.size() == 0 || reloadMarkName == M.name))
 	{
-		if (bClearJamOnly && xr_strcmp(M.name.c_str(), "clear_jam") == 0)
+		// Which marks act. A weapon that names its mark (motion_mark_reload) uses only that one. Otherwise an
+		// animation with a dedicated mark ("clear_jam" for unjams, "reload" for reloads) acts only on that mark,
+		// and an animation without one acts on any mark, as the engine always did: most animations use
+		// tool-default names (NewGroup0, Left, Right...), e.g. GAMMA Reload Timing Fix.
+		const bool weapon_names_mark = reloadMarkName.size() != 0;
+		const bool clears_jam = weapon_names_mark || !CurrentMotionHasMark("clear_jam") || xr_strcmp(M.name.c_str(), "clear_jam") == 0;
+		const bool reloads = weapon_names_mark || !CurrentMotionHasMark("reload") || xr_strcmp(M.name.c_str(), "reload") == 0;
+
+		if (bClearJamOnly && clears_jam)
 		{
 			bMisfire = false;
 			bClearJamOnly = false;
@@ -1787,7 +1795,7 @@ void CWeaponMagazined::OnMotionMark(u32 state, const motion_marks& M, float mark
 		}
 		else
 		{
-			if (m_needReload && xr_strcmp(M.name.c_str(), "reload") == 0)
+			if (m_needReload && reloads && !bClearJamOnly) // an unjam never loads rounds
 				ReloadMagazine();
 
             // Verdatim, fix for lmg with non-(lmg_reload) motion marks causing belts to disappear

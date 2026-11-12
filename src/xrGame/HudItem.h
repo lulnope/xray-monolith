@@ -220,6 +220,7 @@ public:
 	u32 PlayHUDMotion(shared_str M, BOOL bMixIn, CHudItem* W, u32 state, float speed = 1.f, float end = 0.f, bool bMixIn2 = true);
 	bool PlayHUDMotion_noCB(const shared_str& M, BOOL bMixIn, float speed = 1.f, bool bMixIn2 = true, float* final_speed = nullptr);
 	void StopCurrentAnimWithoutCallback();
+	bool CurrentMotionHasMark(LPCSTR name) const; // true if the playing animation has a non-empty mark with this name
 
 	IC void RenderHud(BOOL B) { m_huditem_flags.set(fl_renderhud, B); }
 	IC BOOL RenderHud() { return m_huditem_flags.test(fl_renderhud); }
