@@ -65,7 +65,7 @@ BOOL g_item_spawn_placement = TRUE;
 namespace
 {
 	const float ITEM_PLACEMENT_SCAN = 500.f;    // checked range above and below the stored position
-	const float ITEM_PLACEMENT_PAD = 0.02f;     // clearance on top of the item's height
+	const float ITEM_PLACEMENT_PAD = 0.05f;     // clearance on top of the item's height
 	const float ITEM_PLACEMENT_FALLBACK = 0.5f; // item height when it has no visual
 
 	struct item_placement_event
