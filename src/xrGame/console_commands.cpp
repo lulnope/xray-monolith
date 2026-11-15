@@ -176,6 +176,7 @@ extern BOOL g_aimmode_remember;
 extern BOOL g_freelook_while_reloading;
 extern BOOL useSeparateUBGLKeybind;
 extern int ps_hud_ik_compensation;
+extern BOOL scale_hud_motion_marks_by_speed; // Verdatim
 extern int g_nearwall;
 extern int g_nearwall_trace;
 extern BOOL drawPickupItemNames;
@@ -2704,6 +2705,7 @@ void CCC_RegisterCommands()
 	CMD3(CCC_Mask, "hud_info", &psHUD_Flags, HUD_INFO);
 	CMD3(CCC_Mask, "hud_draw", &psHUD_Flags, HUD_DRAW);
 	CMD4(CCC_Integer, "hud_ik_compensation", &ps_hud_ik_compensation, 0, 1);
+	CMD4(CCC_Integer, "scale_hud_motion_marks_by_speed", &scale_hud_motion_marks_by_speed, 0, 1); // Verdatim
 
 	// hud
 	psHUD_Flags.set(HUD_CROSSHAIR, true);

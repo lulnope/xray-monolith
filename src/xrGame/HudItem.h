@@ -136,6 +136,7 @@ public:
 		float m_fCurrentMotionLength;
 		float m_fCurrentMotionEnd;
 		float m_fCurrentMotionSpeed;
+		u32 m_dwMotionLastUpdateTm; // Device.dwTimeGlobal of the last clock step
 	};
 
 	virtual void Load(LPCSTR section);
@@ -246,6 +247,9 @@ public:
 
 	virtual bool CheckCompatibility(CHudItem*) { return true; }
 protected:
+
+	bool UpdateMotionClock();
+	bool FireMotionMarks(float from, float to);
 
 	shared_str hud_sect;
 
